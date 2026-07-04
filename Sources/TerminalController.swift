@@ -13225,8 +13225,18 @@ class TerminalController {
             result = await v2MacPowerStatus()
         case "mac.power.sleep":
             result = await v2MacPowerSleep()
+        case "mac.power.displays_sleep":
+            result = await v2MacPowerSleepDisplays()
         case "mac.power.keep_awake.disable":
             result = await v2MacPowerDisableKeepAwake()
+        case "mac.audio.status":
+            result = v2MacAudioStatus()
+        case "mac.audio.set":
+            result = v2MacAudioSet(params: request.params)
+        case "mac.keyboard_backlight.status":
+            result = v2MacKeyboardBacklightStatus()
+        case "mac.keyboard_backlight.set":
+            result = v2MacKeyboardBacklightSet(params: request.params)
         default:
             result = .err(code: "method_not_found", message: "Unknown mobile method", data: [
                 "method": request.method

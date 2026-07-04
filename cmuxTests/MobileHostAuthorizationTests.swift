@@ -1082,6 +1082,9 @@ struct MobileHostAuthorizationTests {
         #expect(capabilities.contains("terminal.render_grid.v1"))
         // Mac power control gates the phone's sleep / disable-keep-awake controls.
         #expect(capabilities.contains("mac.power.control.v1"))
+        #expect(capabilities.contains("mac.power.display_sleep.v1"))
+        #expect(capabilities.contains("mac.audio.control.v1"))
+        #expect(capabilities.contains("mac.keyboard_backlight.control.v1"))
     }
 
     // MARK: - Mobile workspace.action sub-action gate

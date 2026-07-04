@@ -93,6 +93,9 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
     private static let dogfoodFeedbackCapability = "dogfood.v1"
     private static let workspaceGroupsCapability = "workspace.groups.v1"
     private static let macPowerControlCapability = "mac.power.control.v1"
+    private static let macDisplaySleepCapability = "mac.power.display_sleep.v1"
+    private static let macAudioControlCapability = "mac.audio.control.v1"
+    private static let macKeyboardBacklightControlCapability = "mac.keyboard_backlight.control.v1"
     private static let terminalOutputCapabilityTimeoutNanoseconds: UInt64 = 750_000_000
 
     /// How long the render-grid stream may stay silent (no event of any topic)
@@ -315,6 +318,12 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
     /// Whether the Mac supports the Mac power controls (sleep / disable
     /// keep-awake / keep-awake status) exposed in the per-computer detail view.
     public var supportsMacPowerControl: Bool { supportedHostCapabilities.contains(Self.macPowerControlCapability) }
+    /// Whether the Mac supports display sleep requests.
+    public var supportsMacDisplaySleep: Bool { supportedHostCapabilities.contains(Self.macDisplaySleepCapability) }
+    /// Whether the Mac supports output volume and mute control.
+    public var supportsMacAudioControl: Bool { supportedHostCapabilities.contains(Self.macAudioControlCapability) }
+    /// Whether the Mac supports keyboard backlight brightness control.
+    public var supportsMacKeyboardBacklight: Bool { supportedHostCapabilities.contains(Self.macKeyboardBacklightControlCapability) }
     /// The composer's live draft for the currently selected terminal.
     ///
     /// Edits are persisted per-terminal through the FIFO draft pipeline on every
@@ -870,7 +879,8 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
         feedbackEmailSubmitter: (any MobileFeedbackEmailSubmitting)? = nil,
         feedbackStampProvider: @escaping @MainActor () -> MobileFeedbackStamp = { MobileShellComposite.emptyFeedbackStamp },
         draftStore: (any TerminalDraftStoring)? = nil,
-        groupCollapseStore: MobileWorkspaceGroupCollapseStore = MobileWorkspaceGroupCollapseStore()
+        groupCollapseStore: MobileWorkspaceGroupCollapseStore = MobileWorkspaceGroupCollapseStore(),
+        supportedHostCapabilities: Set<String> = []
     ) {
         self.runtime = runtime
         self.draftStore = draftStore
@@ -926,6 +936,7 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
         self.selectedWorkspaceID = workspaces.first?.id
         self.selectedTerminalID = workspaces.first?.terminals.first?.id
         self.remoteClient = nil
+        self.supportedHostCapabilities = supportedHostCapabilities
         self.terminalEventListenerTask = nil
         self.terminalEventListenerID = nil
         self.terminalSubscriptionRefreshTask = nil
