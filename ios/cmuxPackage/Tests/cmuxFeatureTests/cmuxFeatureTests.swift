@@ -28,7 +28,10 @@ final class TerminalOutputCollector {
         task = Task { @MainActor [weak self] in
             for await chunk in store.terminalOutputStream(surfaceID: surfaceID) {
                 guard let self else { break }
-                self.lines.append(String(data: chunk.data, encoding: .utf8) ?? "")
+                let joinedPayload = chunk.payload.reduce(into: Data()) { joined, payloadChunk in
+                    joined.append(payloadChunk)
+                }
+                self.lines.append(String(data: joinedPayload, encoding: .utf8) ?? "")
                 store.terminalOutputDidProcess(
                     surfaceID: surfaceID,
                     streamToken: chunk.streamToken

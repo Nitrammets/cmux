@@ -59,29 +59,35 @@ extension GhosttySurfaceView {
         return max(0, snapshot.total - snapshot.len - snapshot.offset)
     }
 
-    /// Apply a full render-grid replacement (bytes begin with an `ESC c`
-    /// terminal reset) while preserving the local viewport scroll position.
+    /// Apply a full render-grid replacement while preserving local scroll.
     ///
-    /// Invariant: authoritative content rebuilds never move the phone-owned
-    /// viewport. The reset leaves the rebuilt mirror pinned to the bottom, so
-    /// when the viewport was scrolled into scrollback the same offset-from-
-    /// bottom is re-applied after the rebuild. At the bottom (offset 0, the
-    /// cold-attach case) this is a no-op and the surface stays pinned to live
-    /// output. The rebuilt scrollback carries the same trailing history, so
-    /// offset-from-bottom maps to the same content modulo output that arrived
-    /// since the snapshot was taken.
-    /// - Parameter data: Full-snapshot VT bytes to feed into the surface.
+    /// Each sub-chunk is bounded so the flat 2s apply deadline remains valid
+    /// by construction; recovery now only fires for genuinely wedged pipelines.
+    /// The reset leaves the rebuilt mirror pinned to the bottom, so when the
+    /// viewport was scrolled into scrollback the same offset-from-bottom is
+    /// re-applied after every sub-chunk succeeds.
+    /// - Parameter chunks: Full-snapshot VT chunks to feed into the surface.
     /// - Returns: `true` when the bytes reached the current surface generation,
     ///   or `false` when the caller should reset its delivery queue and replay.
     @discardableResult
-    public func processFullReplacementOutputAndWait(_ data: Data) async -> Bool {
+    public func processFullReplacementOutputAndWait(_ chunks: [Data]) async -> Bool {
         let offsetFromBottom = scrollbackOffsetFromBottom
-        let applied = await processOutputAndWait(data)
-        guard applied else { return false }
+        for chunk in chunks where !chunk.isEmpty {
+            let applied = await processOutputAndWait(chunk)
+            guard applied else { return false }
+        }
         if offsetFromBottom > 0 {
             scrollLocalViewportRows(-offsetFromBottom)
         }
         return true
+    }
+
+    /// Apply one full-replacement blob while preserving local scroll.
+    /// - Parameter data: Full-snapshot VT bytes to feed into the surface.
+    /// - Returns: `true` when the bytes reached the current surface generation.
+    @discardableResult
+    public func processFullReplacementOutputAndWait(_ data: Data) async -> Bool {
+        await processFullReplacementOutputAndWait([data])
     }
 }
 #endif

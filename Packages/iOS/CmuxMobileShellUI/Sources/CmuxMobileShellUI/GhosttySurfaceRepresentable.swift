@@ -146,7 +146,7 @@ struct GhosttySurfaceRepresentable: UIViewRepresentable {
                     switch chunk.viewportPolicy {
                     case .natural:
                         self.activeViewportPolicy = .natural
-                        if chunk.data.isEmpty {
+                        if chunk.isEmpty {
                             surfaceView.useNaturalViewSize()
                         } else {
                             let applied = await surfaceView.useNaturalViewSizeAndWait()
@@ -160,7 +160,7 @@ struct GhosttySurfaceRepresentable: UIViewRepresentable {
                         }
                     case .remoteGrid(let columns, let rows):
                         self.activeViewportPolicy = .remoteGrid(columns: columns, rows: rows)
-                        if chunk.data.isEmpty {
+                        if chunk.isEmpty {
                             surfaceView.applyViewSize(cols: columns, rows: rows)
                         } else {
                             let applied = await surfaceView.applyViewSizeAndWait(cols: columns, rows: rows)
@@ -175,10 +175,20 @@ struct GhosttySurfaceRepresentable: UIViewRepresentable {
                     case nil:
                         break
                     }
-                    if !chunk.data.isEmpty {
-                        let applied = chunk.isFullReplacement
-                            ? await surfaceView.processFullReplacementOutputAndWait(chunk.data)
-                            : await surfaceView.processOutputAndWait(chunk.data)
+                    if !chunk.isEmpty {
+                        let applied: Bool
+                        if chunk.isFullReplacement {
+                            applied = await surfaceView.processFullReplacementOutputAndWait(chunk.payload)
+                        } else {
+                            var didApply = true
+                            for payloadChunk in chunk.payload where !payloadChunk.isEmpty {
+                                guard await surfaceView.processOutputAndWait(payloadChunk) else {
+                                    didApply = false
+                                    break
+                                }
+                            }
+                            applied = didApply
+                        }
                         guard applied else {
                             store.terminalOutputDidReset(
                                 surfaceID: surfaceID,

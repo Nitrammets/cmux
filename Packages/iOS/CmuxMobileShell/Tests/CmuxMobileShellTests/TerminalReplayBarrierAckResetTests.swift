@@ -20,7 +20,7 @@ import Testing
     var iterator = store.terminalOutputStream(surfaceID: surfaceID).makeAsyncIterator()
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: 1)
     let coldReplayChunk = try #require(await iterator.next())
-    #expect(String(data: coldReplayChunk.data, encoding: .utf8) == "cold-replay")
+    #expect(coldReplayChunk.utf8Payload == "cold-replay")
     store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: coldReplayChunk.streamToken)
     let replayCountAfterMount = await router.count(of: "mobile.terminal.replay")
 
@@ -30,19 +30,19 @@ import Testing
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: replayCountAfterMount + 1)
 
     let firstReplayChunk = try #require(await iterator.next())
-    #expect(String(data: firstReplayChunk.data, encoding: .utf8) == "first-replay")
+    #expect(firstReplayChunk.utf8Payload == "first-replay")
     let barrierToken = try #require(store.terminalReplayBarrierTokensBySurfaceID[surfaceID])
 
     store.terminalOutputDidReset(surfaceID: surfaceID, streamToken: firstReplayChunk.streamToken)
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: replayCountAfterMount + 2)
     let secondReplayChunk = try #require(await iterator.next())
-    #expect(String(data: secondReplayChunk.data, encoding: .utf8) == "second-replay")
+    #expect(secondReplayChunk.utf8Payload == "second-replay")
     #expect(store.terminalReplayBarrierTokensBySurfaceID[surfaceID] == barrierToken)
 
     store.terminalOutputDidReset(surfaceID: surfaceID, streamToken: secondReplayChunk.streamToken)
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: replayCountAfterMount + 3)
     let thirdReplayChunk = try #require(await iterator.next())
-    #expect(String(data: thirdReplayChunk.data, encoding: .utf8) == "third-replay")
+    #expect(thirdReplayChunk.utf8Payload == "third-replay")
     #expect(store.terminalReplayBarrierTokensBySurfaceID[surfaceID] == barrierToken)
 
     store.terminalOutputDidReset(surfaceID: surfaceID, streamToken: thirdReplayChunk.streamToken)

@@ -338,20 +338,14 @@ public struct MobileTerminalRenderGridFrame: Codable, Equatable, Sendable {
         MobileTerminalRenderGridReplay(self).replacementBytes()
     }
 
-    /// Synthesize a VT byte stream that reproduces this frame when fed to a
-    /// terminal emulator.
-    ///
-    /// A **full** frame is a faithful cold-attach snapshot: it resets the
-    /// terminal, restores dynamic default colors, repaints scrollback and the
-    /// visible viewport as a natural scrolling flow, restores the active screen
-    /// (`?1049h` for the alternate screen), reapplies non-default DEC/ANSI
-    /// modes, and finally restores the cursor. A **delta** frame clears and
-    /// repaints only the changed viewport rows.
-    ///
-    /// Forwards to ``MobileTerminalRenderGridReplay/patchBytes()``; the VT
-    /// synthesizer lives there so this DTO stays a pure value.
+    /// Synthesize VT bytes for this frame via ``MobileTerminalRenderGridReplay``.
     public func vtPatchBytes() -> Data {
         MobileTerminalRenderGridReplay(self).patchBytes()
+    }
+
+    /// Synthesize ordered VT byte chunks whose concatenation equals ``vtPatchBytes()``.
+    public func vtPatchByteChunks() -> [Data] {
+        MobileTerminalRenderGridReplay(self).patchByteChunks()
     }
 
     private static func normalizedRows(from text: String, maxRows: Int) -> [String] {

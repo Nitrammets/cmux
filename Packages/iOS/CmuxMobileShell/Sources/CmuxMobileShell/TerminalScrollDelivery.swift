@@ -26,7 +26,7 @@ struct TerminalScrollDelivery: Equatable, Sendable {
 struct TerminalScrollbackPrefetchState: Equatable, Sendable {
     static let defaultWindowRows = 600
     static let defaultRefreshDistanceRows = 120.0
-    static let defaultMaxWindowRows = 4800
+    static let defaultMaxWindowRows = 2400
 
     var windowRows: Int
     var refreshDistanceRows: Double
