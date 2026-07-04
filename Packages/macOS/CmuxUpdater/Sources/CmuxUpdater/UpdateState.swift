@@ -169,7 +169,7 @@ public enum UpdateState: Equatable {
     public enum ReleaseNotes {
         /// The version maps to a git commit; links to the commit page.
         case commit(URL)
-        /// The version maps to a semantic-version tag; links to the release page.
+        /// The version maps to a semantic-version tag; links to the changelog anchor.
         case tagged(URL)
 
         /// Derives a release-notes link from a display version string, returning `nil` when
@@ -179,7 +179,7 @@ public enum UpdateState: Equatable {
 
             if let semver = Self.extractSemanticVersion(from: version) {
                 let tag = semver.hasPrefix("v") ? semver : "v\(semver)"
-                if let url = URL(string: "https://github.com/manaflow-ai/cmux/releases/tag/\(tag)") {
+                if let url = URL(string: "https://cmux.com/docs/changelog#\(tag)") {
                     self = .tagged(url)
                     return
                 }

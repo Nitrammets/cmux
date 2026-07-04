@@ -41,6 +41,9 @@ final class UpdateDriver: NSObject, @preconcurrency SPUUserDriver {
     /// Invoked when Sparkle finishes an update cycle (success or abort) — the real
     /// session-teardown signal the controller keys deferred work (the silent-download kick) on.
     var onUpdateSessionFinished: (() -> Void)?
+    /// Returns true when a resumed stale staged update should be skipped so Sparkle can fetch
+    /// and stage the newer feed item through a fresh background check.
+    var shouldSkipStaleStagedUpdate: ((SUAppcastItem, SPUUserUpdateState) -> Bool)?
 
     init(model: UpdateStateModel, log: any UpdateLogging, clock: any UpdateClock, isDevLikeBundle: Bool = false) {
         self.model = model
@@ -80,6 +83,11 @@ final class UpdateDriver: NSObject, @preconcurrency SPUUserDriver {
     func showUpdateFound(with appcastItem: SUAppcastItem,
                          state: SPUUserUpdateState,
                          reply: @escaping @Sendable (SPUUserUpdateChoice) -> Void) {
+        if shouldSkipStaleStagedUpdate?(appcastItem, state) == true {
+            log.append("skipping stale staged update: \(appcastItem.displayVersionString)")
+            reply(.skip)
+            return
+        }
         log.append("show update found: \(appcastItem.displayVersionString)")
         setStateAfterMinimumCheckDelay(.updateAvailable(.init(appcastItem: appcastItem, reply: reply)))
     }

@@ -23,8 +23,9 @@ public final class UpdateController {
     let clock: any UpdateClock
     private let defaults: UserDefaults
     private let fileManager: FileManager
-    private let hostBundle: Bundle
+    let hostBundle: Bundle
     private let backgroundProbeInterval: TimeInterval
+    let oneClickProviders: UpdateOneClickProviders
     /// Whether the running build is a cmux DEV/staging build that must never be compared against
     /// the public release appcast. See ``isDevLikeBundleIdentifier(_:)``.
     let isDevLikeBundle: Bool
@@ -56,6 +57,8 @@ public final class UpdateController {
     var backgroundRetryTask: Task<Void, Never>?
     var restartWhenIdleTask: Task<Void, Never>?
     var toastMuteExpiryTask: Task<Void, Never>?
+    var whatsNewState = UpdateWhatsNewLoadState()
+    var stagedFreshnessState = UpdateStagedFreshnessState()
     /// How many silent-download retries were scheduled after transient background failures;
     /// bounded so a persistent outage falls back to Sparkle's scheduled hourly check.
     var backgroundRetryCount = 0
@@ -77,26 +80,16 @@ public final class UpdateController {
     /// The observable model the UI renders from.
     public var model: UpdateStateModel { driver.model }
 
-    /// Creates a controller, applying the Sparkle preference defaults and wiring the updater.
-    ///
-    /// - Parameters:
-    ///   - log: The update log sink (the app's `UpdateLogStore`).
-    ///   - clock: Clock for bounded UI delays. Defaults to ``SystemUpdateClock``.
-    ///   - settings: The Sparkle defaults/migration configuration. Defaults to cmux's hourly check.
-    ///   - hostBundle: The bundle Sparkle reads its configuration and version from.
-    ///   - defaults: The `UserDefaults` the settings are applied to.
-    ///   - fileManager: Filesystem access for the Sparkle installation-cache workaround;
-    ///     injectable so tests can avoid touching the real filesystem.
-    ///   - isDevLikeBundle: Overrides whether this is a DEV/staging build. Defaults to `nil`,
-    ///     which derives it from `hostBundle.bundleIdentifier` via ``isDevLikeBundleIdentifier(_:)``.
-    ///     Injectable because a `Bundle` with an arbitrary identifier cannot be constructed in tests.
+    /// Creates a controller, applying Sparkle preference defaults and wiring the updater.
     public init(log: any UpdateLogging,
                 clock: any UpdateClock = SystemUpdateClock(),
                 settings: UpdateSettings = UpdateSettings(),
                 hostBundle: Bundle = .main,
                 defaults: UserDefaults = .standard,
                 fileManager: FileManager = .default,
-                isDevLikeBundle: Bool? = nil) {
+                isDevLikeBundle: Bool? = nil,
+                whatsNewProvider: UpdateWhatsNewProvider? = nil,
+                latestVersionProvider: UpdateLatestAppcastVersionProvider? = nil) {
         self.log = log
         self.clock = clock
         self.defaults = defaults
@@ -105,6 +98,7 @@ public final class UpdateController {
         self.backgroundProbeInterval = settings.scheduledCheckInterval
         let isDevLikeBundle = isDevLikeBundle ?? Self.isDevLikeBundleIdentifier(hostBundle.bundleIdentifier)
         self.isDevLikeBundle = isDevLikeBundle
+        self.oneClickProviders = UpdateOneClickProviders(whatsNewProvider: whatsNewProvider ?? UpdateWhatsNewProvider(allowsNetwork: !isDevLikeBundle), latestVersionProvider: latestVersionProvider ?? UpdateLatestAppcastVersionProvider(allowsNetwork: !isDevLikeBundle))
         settings.apply(to: defaults)
         if isDevLikeBundle {
             // DEV (`com.cmuxterm.app.debug[.<tag>]`) and staging (`com.cmuxterm.app.staging[.<tag>]`)
@@ -135,9 +129,13 @@ public final class UpdateController {
         }
         driver.onUpdateSessionFinished = { [weak self] in
             self?.startSilentDownloadIfKickPending()
+            self?.startStagedFreshnessBackgroundCheckIfPending()
         }
         driver.onBackgroundSessionError = { [weak self] error in
             self?.scheduleBackgroundRetryIfTransient(error)
+        }
+        driver.shouldSkipStaleStagedUpdate = { [weak self] item, state in
+            self?.shouldSkipStaleStagedUpdate(displayVersion: item.displayVersionString, stage: state.stage) ?? false
         }
         startStateReactions()
     }
@@ -150,6 +148,7 @@ public final class UpdateController {
         recheckTask?.cancel()
         silentDownloadKickTask?.cancel()
         backgroundRetryTask?.cancel(); restartWhenIdleTask?.cancel(); toastMuteExpiryTask?.cancel()
+        whatsNewState.task?.cancel(); stagedFreshnessState.task?.cancel(); stagedFreshnessState.backgroundCheckTask?.cancel()
     }
 
     // MARK: - Reaction stream
@@ -176,6 +175,8 @@ public final class UpdateController {
             performAttemptAction(attemptCoordinator.handleStateChange(state))
         }
         scheduleToastMuteExpiryIfNeeded()
+        refreshWhatsNewForStagedVersionIfNeeded()
+        scheduleStagedFreshnessCheckIfNeeded()
         scheduleNoUpdateDismiss(for: state, overrideState: overrideState)
         if state.isIdle, overrideState == nil {
             startSilentDownloadIfKickPending()

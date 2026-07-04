@@ -34,9 +34,13 @@ public final class UpdateStateModel {
     public private(set) var dismissedUpdateReadyToastVersion: String?
     /// Whether the user asked to defer the staged update's restart until the Mac is idle.
     public private(set) var isRestartWhenIdleArmed = false
-    /// The deadline until which the update-ready toast is muted (any version). Persisted so a
-    /// multi-day mute survives relaunches; the pill remains the ambient affordance meanwhile.
+    /// The deadline until which passive update nags are muted (any version). Persisted so a
+    /// multi-day mute survives relaunches.
     public private(set) var updateReadyToastMutedUntil: Date?
+    /// The staged version whose changelog bullets are currently loaded for the toast.
+    public private(set) var updateReadyWhatsNewVersion: String?
+    /// Short changelog bullets for the staged version, loaded asynchronously and best-effort.
+    public private(set) var updateReadyWhatsNewBullets: [String] = []
     /// Tracks an in-memory dismissal for a staged update whose version is unavailable. Known
     /// versions use ``dismissedUpdateReadyToastVersion`` so newer versions can re-surface.
     public private(set) var dismissedUnknownVersionUpdateReadyToast = false
@@ -226,8 +230,8 @@ public final class UpdateStateModel {
         return installing
     }
 
-    /// Mutes the update-ready toast (for any staged version) for `duration`, persisting the
-    /// deadline across relaunches. The pill keeps showing the staged install.
+    /// Mutes passive update nags (for any staged version) for `duration`, persisting the
+    /// deadline across relaunches.
     public func muteUpdateReadyToast(for duration: TimeInterval) {
         let until = now().addingTimeInterval(duration)
         updateReadyToastMutedUntil = until
@@ -267,6 +271,14 @@ public final class UpdateStateModel {
         notifyStateChanged()
     }
 
+    /// Replaces the best-effort changelog bullets shown in the update-ready toast.
+    public func setUpdateReadyWhatsNew(version: String?, bullets: [String]) {
+        guard updateReadyWhatsNewVersion != version || updateReadyWhatsNewBullets != bullets else { return }
+        updateReadyWhatsNewVersion = version
+        updateReadyWhatsNewBullets = Array(bullets.prefix(3))
+        notifyStateChanged()
+    }
+
     // MARK: - Derived display state
 
     /// The phase to display: the override if present, otherwise ``state``.
@@ -277,7 +289,7 @@ public final class UpdateStateModel {
     /// Whether to surface a passive "update available" banner detected in the background while
     /// the foreground flow is idle.
     public var showsDetectedBackgroundUpdate: Bool {
-        effectiveState.isIdle && detectedUpdateVersion != nil
+        effectiveState.isIdle && detectedUpdateVersion != nil && !isUpdateNagMuted
     }
 
     /// Whether cached appcast details exist for the detected background update.
@@ -287,7 +299,8 @@ public final class UpdateStateModel {
 
     /// Whether the update pill should be visible.
     public var showsPill: Bool {
-        !effectiveState.isIdle || showsDetectedBackgroundUpdate
+        if isMutedStagedAutoInstall { return false }
+        return !effectiveState.isIdle || showsDetectedBackgroundUpdate
     }
 
     /// The pill's title text for the current phase.
@@ -432,6 +445,21 @@ public final class UpdateStateModel {
     var detectedUpdateText: String? {
         guard showsDetectedBackgroundUpdate, let version = detectedUpdateVersion else { return nil }
         return String(localized: "update.available.withVersion", defaultValue: "Update Available: \(version)")
+    }
+
+    /// Whether passive update nags are currently muted.
+    public var isUpdateNagMuted: Bool {
+        guard let mutedUntil = updateReadyToastMutedUntil else { return false }
+        return now() < mutedUntil
+    }
+
+    private var isMutedStagedAutoInstall: Bool {
+        guard isUpdateNagMuted,
+              case .installing(let installing) = effectiveState,
+              installing.isAutoUpdate else {
+            return false
+        }
+        return true
     }
 
     /// Normalizes a Sparkle display version into a trimmed, non-empty string, or `nil`.

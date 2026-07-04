@@ -3,6 +3,7 @@ import SwiftUI
 struct SidebarWorkspaceScrollEdgeFadeMask: View {
     let topHeight: CGFloat
     let bottomHeight: CGFloat
+    var bottomClearHeight: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -12,6 +13,9 @@ struct SidebarWorkspaceScrollEdgeFadeMask: View {
                 .fill(Color.black)
             SidebarEdgeFadeGradient(edge: .bottom)
                 .frame(height: bottomHeight)
+            if bottomClearHeight > 0 {
+                Color.clear.frame(height: bottomClearHeight)
+            }
         }
     }
 }

@@ -10611,7 +10611,8 @@ struct VerticalTabsSidebar: View {
                 .mask(
                     SidebarWorkspaceScrollEdgeFadeMask(
                         topHeight: sidebarTopScrimHeight,
-                        bottomHeight: sidebarBottomScrimHeight + extraBottomInset
+                        bottomHeight: sidebarBottomScrimHeight,
+                        bottomClearHeight: extraBottomInset
                     )
                 )
                 .overlay(alignment: .top) {
@@ -10729,7 +10730,6 @@ struct VerticalTabsSidebar: View {
     @ViewBuilder
     private func extensionSidebarScrollAreaContent(renderContext: WorkspaceListRenderContext, extraBottomInset: CGFloat) -> some View {
         let scrollInsets = SidebarWorkspaceScrollInsets(top: SidebarWorkspaceScrollInsets.workspaceList.top, bottom: SidebarWorkspaceScrollInsets.workspaceList.bottom + extraBottomInset)
-        let bottomScrimHeight = sidebarBottomScrimHeight + extraBottomInset
         if effectiveExtensionSidebarProviderId == CmuxExtensionSidebarSelection.hostedExtensionsProviderId {
             CMUXInstalledExtensionSidebarHostView(
                 snapshotProvider: { cmuxSidebarSnapshotForCurrentTabs() },
@@ -10749,7 +10749,8 @@ struct VerticalTabsSidebar: View {
             .mask(
                 SidebarWorkspaceScrollEdgeFadeMask(
                     topHeight: 0,
-                    bottomHeight: bottomScrimHeight
+                    bottomHeight: sidebarBottomScrimHeight,
+                    bottomClearHeight: extraBottomInset
                 )
             )
         } else if effectiveExtensionSidebarProviderId.hasPrefix(CmuxExtensionSidebarSelection.customSidebarProviderPrefix),
@@ -10770,7 +10771,8 @@ struct VerticalTabsSidebar: View {
             .mask(
                 SidebarWorkspaceScrollEdgeFadeMask(
                     topHeight: sidebarTopScrimHeight,
-                    bottomHeight: bottomScrimHeight
+                    bottomHeight: sidebarBottomScrimHeight,
+                    bottomClearHeight: extraBottomInset
                 )
             )
         } else {
@@ -10847,7 +10849,8 @@ struct VerticalTabsSidebar: View {
             .mask(
                 SidebarWorkspaceScrollEdgeFadeMask(
                     topHeight: sidebarTopScrimHeight,
-                    bottomHeight: scrollInsets.bottom
+                    bottomHeight: sidebarBottomScrimHeight,
+                    bottomClearHeight: max(0, scrollInsets.bottom - SidebarWorkspaceScrollInsets.workspaceList.bottom)
                 )
             )
             .overlay(alignment: .top) {

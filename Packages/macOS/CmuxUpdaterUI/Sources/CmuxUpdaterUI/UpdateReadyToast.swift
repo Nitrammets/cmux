@@ -8,7 +8,7 @@ import AppKit
 ///
 /// Visibility is derived entirely from ``UpdateStateModel/updateReadyToastInstalling``
 /// (staged auto-update present, not dismissed for this version, not muted, restart-when-idle
-/// not armed). Sized to fill the sidebar width, so the actions stack vertically.
+/// not armed). Sized to fill the sidebar width, with compact side-by-side primary actions.
 public struct UpdateReadyToast: View {
     private let model: UpdateStateModel
     private let actions: any UpdateActionsHost
@@ -45,10 +45,6 @@ public struct UpdateReadyToast: View {
     private func toastCard(_ installing: UpdateState.Installing) -> some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 6) {
-                Image(systemName: "arrow.down.circle.fill")
-                    .cmuxFont(size: 12, weight: .medium)
-                    .foregroundStyle(.tint.secondary)
-
                 Text(title(for: installing))
                     .cmuxFont(size: 12, weight: .semibold)
                     .lineLimit(1)
@@ -64,11 +60,7 @@ public struct UpdateReadyToast: View {
                         .accessibilityIdentifier(option.accessibilityIdentifier)
                     }
                 } label: {
-                    Image(systemName: "bell.slash")
-                        .cmuxFont(size: 10)
-                        .foregroundColor(.secondary)
-                        .frame(width: 18, height: 18)
-                        .contentShape(Rectangle())
+                    headerIcon("bell.slash")
                 }
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
@@ -80,11 +72,7 @@ public struct UpdateReadyToast: View {
                 Button {
                     model.dismissUpdateReadyToast()
                 } label: {
-                    Image(systemName: "xmark")
-                        .cmuxFont(size: 9, weight: .semibold)
-                        .foregroundColor(.secondary)
-                        .frame(width: 18, height: 18)
-                        .contentShape(Rectangle())
+                    headerIcon("xmark")
                 }
                 .buttonStyle(.plain)
                 .safeHelp(String(localized: "update.toast.dismiss", defaultValue: "Dismiss"))
@@ -97,7 +85,21 @@ public struct UpdateReadyToast: View {
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            VStack(spacing: 6) {
+            if model.updateReadyWhatsNewVersion == installing.stagedVersion,
+               !model.updateReadyWhatsNewBullets.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(model.updateReadyWhatsNewBullets.prefix(3), id: \.self) { bullet in
+                        Text(verbatim: "• \(bullet)")
+                            .cmuxFont(size: 10)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            HStack(spacing: 6) {
                 Button {
                     installing.retryTerminatingApplication()
                 } label: {
@@ -111,7 +113,7 @@ public struct UpdateReadyToast: View {
                 Button {
                     actions.requestRestartWhenIdle()
                 } label: {
-                    Text(String(localized: "update.toast.restartWhenIdle", defaultValue: "Restart When Idle"))
+                    Text(String(localized: "update.toast.restartWhenIdle.short", defaultValue: "When Idle"))
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -148,8 +150,17 @@ public struct UpdateReadyToast: View {
                 .strokeBorder(Color(nsColor: .separatorColor).opacity(0.75), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.12), radius: 7, y: 2)
+        .animation(.easeInOut(duration: 0.25), value: model.updateReadyWhatsNewBullets)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("UpdateReadyToast")
+    }
+
+    private func headerIcon(_ name: String) -> some View {
+        Image(systemName: name)
+            .cmuxFont(size: 10, weight: .medium)
+            .foregroundColor(.secondary)
+            .frame(width: 18, height: 18)
+            .contentShape(Rectangle())
     }
 
     private func title(for installing: UpdateState.Installing) -> String {

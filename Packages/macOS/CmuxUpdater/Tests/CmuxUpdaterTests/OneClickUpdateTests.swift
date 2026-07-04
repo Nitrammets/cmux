@@ -140,6 +140,7 @@ import Testing
         model.setState(.installing(stagedInstalling(version: "1.2.3")))
         model.muteUpdateReadyToast(for: 60 * 60)
         #expect(model.updateReadyToastInstalling == nil)
+        #expect(!model.showsPill)
 
         // A newer staged version is still muted — mute is time-based, not per-version.
         model.setState(.installing(stagedInstalling(version: "1.2.4")))
@@ -148,6 +149,25 @@ import Testing
         // Past the deadline the toast returns.
         currentTime = currentTime.addingTimeInterval(60 * 60 + 1)
         #expect(model.updateReadyToastInstalling?.stagedVersion == "1.2.4")
+        #expect(model.showsPill)
+    }
+
+    @Test func muteHidesDetectedBannerButNotUserInitiatedPhases() throws {
+        let model = UpdateStateModel(defaults: try makeScratchDefaults())
+        let base = Date(timeIntervalSince1970: 3_000_000)
+        model.now = { base }
+        model.muteUpdateReadyToast(for: 60 * 60)
+
+        if let item = makeAppcastItem(version: "1.2.4") {
+            model.recordDetectedUpdate(item)
+        }
+        #expect(!model.showsDetectedBackgroundUpdate)
+        #expect(!model.showsPill)
+
+        model.setState(.checking(.init(cancel: {})))
+        #expect(model.showsPill)
+        model.setState(.downloading(.init(cancel: {}, expectedLength: 100, progress: 5)))
+        #expect(model.showsPill)
     }
 
     @Test func mutePersistsAcrossModelInstances() throws {
@@ -194,8 +214,74 @@ import Testing
 
     @Test func stagedVersionDerivesReleaseNotesLink() {
         let installing = stagedInstalling(version: "0.65.0")
-        #expect(installing.releaseNotes?.url.absoluteString == "https://github.com/manaflow-ai/cmux/releases/tag/v0.65.0")
+        #expect(installing.releaseNotes?.url.absoluteString == "https://cmux.com/docs/changelog#v0.65.0")
         #expect(stagedInstalling(version: nil).releaseNotes == nil)
+    }
+
+    @Test func commitVersionStillLinksToGitHubCommit() {
+        let notes = UpdateState.ReleaseNotes(displayVersionString: "nightly abcdef123456")
+        #expect(notes?.url.absoluteString == "https://github.com/manaflow-ai/cmux/commit/abcdef123456")
+    }
+
+    // MARK: - What's new bullets
+
+    @Test func whatsNewProviderParsesTopLevelBulletsForVersion() {
+        let changelog = """
+        ## [1.2.4] - 2026-07-01
+        - Added **fast** updates.
+        - Fixed [sidebar layout](https://example.com).
+          - nested details are ignored
+        - Improved `restart` handling.
+        - Fourth item is omitted.
+
+        ## [1.2.3] - 2026-06-01
+        - Older item.
+        """
+
+        #expect(UpdateWhatsNewProvider.parseBullets(for: "1.2.4", in: changelog) == [
+            "Added fast updates.",
+            "Fixed sidebar layout.",
+            "Improved restart handling.",
+        ])
+    }
+
+    @Test func whatsNewProviderFailsClosedAndCachesPerVersion() async {
+        let counter = FetchCounter()
+        let provider = UpdateWhatsNewProvider(transport: { _ in
+            await counter.increment()
+            throw URLError(.notConnectedToInternet)
+        })
+
+        #expect(await provider.bullets(for: "1.2.4") == [])
+        #expect(await provider.bullets(for: "1.2.4") == [])
+        #expect(await counter.value == 1)
+    }
+
+    @Test func latestAppcastVersionProviderParsesFirstItemVersion() {
+        let appcast = """
+        <rss><channel>
+          <item><enclosure sparkle:shortVersionString="1.2.4" sparkle:version="124" /></item>
+          <item><enclosure sparkle:shortVersionString="1.2.3" sparkle:version="123" /></item>
+        </channel></rss>
+        """
+
+        #expect(UpdateLatestAppcastVersionProvider.parseLatestVersion(from: appcast) == "1.2.4")
+    }
+
+    @Test func stagedFreshnessSkipsStaleVersionAndNewVersionResurfacesToast() throws {
+        let controller = try makeController(clock: YieldClock())
+        controller.model.setState(.installing(stagedInstalling(version: "1.2.3")))
+        controller.model.dismissUpdateReadyToast()
+        #expect(controller.model.updateReadyToastInstalling == nil)
+
+        controller.prepareStagedFreshnessRestage(staleVersion: "1.2.3", latestVersion: "1.2.4", startResumeCheck: false)
+
+        #expect(controller.shouldSkipStaleStagedUpdate(displayVersion: "1.2.3", stage: .downloaded))
+        #expect(controller.stagedFreshnessState.pendingBackgroundCheck)
+
+        controller.model.setState(.installing(stagedInstalling(version: "1.2.4")))
+        #expect(controller.model.updateReadyToastInstalling?.stagedVersion == "1.2.4")
+        #expect(controller.model.showsPill)
     }
 
     // MARK: - Restart when idle (controller loop)
@@ -208,6 +294,19 @@ import Testing
             defaults: try makeScratchDefaults(),
             isDevLikeBundle: false
         )
+    }
+
+    private func makeAppcastItem(version: String) -> SUAppcastItem? {
+        SUAppcastItem(dictionary: [
+            "title": "cmux \(version)",
+            "pubDate": "Wed, 25 Mar 2026 12:00:00 +0000",
+            "enclosure": [
+                "url": "https://example.com/cmux.zip",
+                "length": "1024",
+                "sparkle:version": version,
+                "sparkle:shortVersionString": version,
+            ],
+        ])
     }
 
     @Test func restartWhenIdleFiresInstallOnceHostReportsIdle() async throws {
@@ -332,5 +431,13 @@ import Testing
         #expect(!isTransientUpdateNetworkError(
             NSError(domain: "cmux.update", code: 1)
         ))
+    }
+}
+
+private actor FetchCounter {
+    private(set) var value = 0
+
+    func increment() {
+        value += 1
     }
 }

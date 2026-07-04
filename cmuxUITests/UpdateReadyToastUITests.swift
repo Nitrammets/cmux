@@ -77,7 +77,7 @@ final class UpdateReadyToastUITests: XCTestCase {
         )
     }
 
-    func testMuteForOneHourHidesToastButKeepsPill() {
+    func testMuteForOneHourHidesToastAndPill() {
         let app = launchWithStagedAutoUpdate()
 
         let muteCandidates = [
@@ -103,10 +103,11 @@ final class UpdateReadyToastUITests: XCTestCase {
         )
         XCTAssertEqual(XCTWaiter().wait(for: [toastGone], timeout: 5.0), .completed, "Muting should hide the toast")
 
-        XCTAssertTrue(
-            app.buttons["Restart to Complete Update"].waitForExistence(timeout: 5.0),
-            "The pill must remain as the ambient affordance while the toast is muted"
+        let pillGone = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: app.buttons["Restart to Complete Update"]
         )
+        XCTAssertEqual(XCTWaiter().wait(for: [pillGone], timeout: 5.0), .completed, "Muting should hide the staged update pill")
     }
 
     func testDismissHidesToastButKeepsPill() {
