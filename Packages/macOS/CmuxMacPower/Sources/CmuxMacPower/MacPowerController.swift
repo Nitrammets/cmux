@@ -1,5 +1,8 @@
 import Foundation
 
+/// Seconds-based timeout type used by public Mac power package APIs.
+public typealias TimeInterval = Double
+
 /// High-level Mac power control used by the mobile host RPC so the phone can
 /// sleep the Mac, disable keep-awake (caffeinate), and read whether the Mac is
 /// being kept awake.
@@ -40,6 +43,15 @@ public struct MacPowerController: Sendable {
             "/usr/bin/osascript",
             ["-e", "tell application \"System Events\" to sleep"]
         )
+    }
+
+    /// Put the Mac's displays to sleep now without sleeping the whole system.
+    ///
+    /// Uses `pmset displaysleepnow`, which requires no Automation grant and
+    /// exits non-zero when macOS refuses the request.
+    @discardableResult
+    public func sleepDisplays() async -> Bool {
+        await runner.run("/usr/bin/pmset", ["displaysleepnow"])
     }
 
     /// Disable active keep-awake by terminating caffeinate assertion holders,

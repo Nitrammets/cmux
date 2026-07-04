@@ -70,8 +70,11 @@ struct MacComputerDetailView: View {
             appearanceSection
             connectionSection
             presenceSection
-            if isForeground && store.supportsMacPowerControl {
+            if isForeground && (store.supportsMacPowerControl || store.supportsMacDisplaySleep) {
                 macPowerSection
+            }
+            if isForeground && (store.supportsMacAudioControl || store.supportsMacKeyboardBacklight) {
+                MacControlsSection(store: store, macDeviceID: macDeviceID)
             }
             routesSection
             identitySection
@@ -327,19 +330,21 @@ struct MacComputerDetailView: View {
     @ViewBuilder
     private var macPowerSection: some View {
         Section {
-            LabeledContent(L10n.string("mobile.computers.power.keepAwakeLabel", defaultValue: "Keep-awake")) {
-                Label {
-                    Text(keepAwakeSummary).foregroundStyle(.secondary)
-                } icon: {
-                    Image(systemName: (keepAwakeStatus?.keptAwake ?? false) ? "bolt.fill" : "moon.zzz")
-                        .foregroundStyle((keepAwakeStatus?.keptAwake ?? false) ? Color.orange : Color.secondary)
+            if store.supportsMacPowerControl {
+                LabeledContent(L10n.string("mobile.computers.power.keepAwakeLabel", defaultValue: "Keep-awake")) {
+                    Label {
+                        Text(keepAwakeSummary).foregroundStyle(.secondary)
+                    } icon: {
+                        Image(systemName: (keepAwakeStatus?.keptAwake ?? false) ? "bolt.fill" : "moon.zzz")
+                            .foregroundStyle((keepAwakeStatus?.keptAwake ?? false) ? Color.orange : Color.secondary)
+                    }
+                    .labelStyle(.titleAndIcon)
+                    .font(.callout)
+                    .accessibilityIdentifier("MobileMacKeepAwakeStatus")
                 }
-                .labelStyle(.titleAndIcon)
-                .font(.callout)
-                .accessibilityIdentifier("MobileMacKeepAwakeStatus")
             }
 
-            if keepAwakeStatus?.keptAwake ?? false {
+            if store.supportsMacPowerControl, keepAwakeStatus?.keptAwake ?? false {
                 Button {
                     disableKeepAwake()
                 } label: {
@@ -351,29 +356,45 @@ struct MacComputerDetailView: View {
                 .accessibilityIdentifier("MobileMacDisableKeepAwakeButton")
             }
 
-            Button(role: .destructive) {
-                powerMessage = nil
-                pendingSleep = true
-            } label: {
-                Label(L10n.string("mobile.computers.power.sleep", defaultValue: "Sleep Mac"), systemImage: "moon.fill")
+            if store.supportsMacPowerControl {
+                Button(role: .destructive) {
+                    powerMessage = nil
+                    pendingSleep = true
+                } label: {
+                    Label(L10n.string("mobile.computers.power.sleep", defaultValue: "Sleep Mac"), systemImage: "moon.fill")
+                }
+                .disabled(isPowerBusy)
+                .accessibilityIdentifier("MobileMacSleepButton")
             }
-            .disabled(isPowerBusy)
-            .accessibilityIdentifier("MobileMacSleepButton")
 
-            Button {
-                Task { await loadPowerStatus() }
-            } label: {
-                Label {
-                    Text(L10n.string("mobile.computers.power.refresh", defaultValue: "Refresh status"))
-                } icon: {
-                    if isPowerBusy {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
+            if store.supportsMacDisplaySleep {
+                Button {
+                    sleepMacDisplays()
+                } label: {
+                    Label(
+                        L10n.string("mobile.computers.power.sleepDisplays", defaultValue: "Sleep Displays"),
+                        systemImage: "display")
+                }
+                .disabled(isPowerBusy)
+                .accessibilityIdentifier("MobileMacSleepDisplaysButton")
+            }
+
+            if store.supportsMacPowerControl {
+                Button {
+                    Task { await loadPowerStatus() }
+                } label: {
+                    Label {
+                        Text(L10n.string("mobile.computers.power.refresh", defaultValue: "Refresh status"))
+                    } icon: {
+                        if isPowerBusy {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
                     }
                 }
+                .disabled(isPowerBusy)
             }
-            .disabled(isPowerBusy)
 
             if let powerMessage {
                 Text(powerMessage)
@@ -385,7 +406,7 @@ struct MacComputerDetailView: View {
         } footer: {
             Text(L10n.string(
                 "mobile.computers.power.footer",
-                defaultValue: "Sleep puts this Mac to sleep now. Disable keep-awake stops caffeinate so the Mac can sleep on its own again."))
+                defaultValue: "Sleep puts this Mac to sleep now. Sleep Displays turns off the displays without sleeping the Mac. Disable keep-awake stops caffeinate so the Mac can sleep on its own again."))
         }
     }
 
@@ -492,6 +513,28 @@ struct MacComputerDetailView: View {
                 powerMessage = L10n.string(
                     "mobile.computers.power.sleepFailed",
                     defaultValue: "Couldn't reach the Mac to sleep it.")
+            }
+        }
+    }
+
+    @MainActor
+    private func sleepMacDisplays() {
+        beginPowerOperation()
+        powerMessage = nil
+        Task { @MainActor in
+            defer { endPowerOperation() }
+            let result = await store.sleepMacDisplays(macDeviceID: macDeviceID)
+            switch result {
+            case .requested:
+                break
+            case .refused:
+                powerMessage = L10n.string(
+                    "mobile.computers.power.sleepDisplaysRefused",
+                    defaultValue: "macOS refused the display sleep request.")
+            case .failed:
+                powerMessage = L10n.string(
+                    "mobile.computers.power.sleepDisplaysFailed",
+                    defaultValue: "Couldn't reach the Mac to sleep its displays.")
             }
         }
     }

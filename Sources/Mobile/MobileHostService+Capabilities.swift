@@ -37,6 +37,12 @@ extension MobileHostService {
             // caffeinate (mac.power.keep_awake.disable). iOS feature-detects this
             // to show the Mac Power controls only against a Mac that handles them.
             "mac.power.control.v1",
+            // Display sleep: the phone can sleep only the Mac's displays.
+            "mac.power.display_sleep.v1",
+            // Mac output audio: the phone can read/set output volume and mute.
+            "mac.audio.control.v1",
+            // Keyboard backlight: the phone can read/set brightness when present.
+            "mac.keyboard_backlight.control.v1",
         ]
     }
 }

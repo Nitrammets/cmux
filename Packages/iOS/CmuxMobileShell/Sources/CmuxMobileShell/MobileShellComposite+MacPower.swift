@@ -22,7 +22,7 @@ extension MobileShellComposite {
     /// Read the connected Mac's keep-awake status. Returns `nil` if the Mac is
     /// unreachable or the status could not be decoded.
     public func macPowerStatus(macDeviceID: String? = nil) async -> MobileMacPowerStatus? {
-        guard let client = macPowerClient(for: macDeviceID) else { return nil }
+        guard let client = macControlClient(for: macDeviceID) else { return nil }
         do {
             let request = try MobileCoreRPCClient.requestData(
                 method: "mac.power.status",
@@ -39,7 +39,7 @@ extension MobileShellComposite {
 
     /// Put the connected Mac to sleep.
     public func sleepMac(macDeviceID: String? = nil) async -> MobileMacSleepResult {
-        guard let client = macPowerClient(for: macDeviceID) else { return .failed }
+        guard let client = macControlClient(for: macDeviceID) else { return .failed }
         let request: Data
         do {
             request = try MobileCoreRPCClient.requestData(
@@ -74,7 +74,7 @@ extension MobileShellComposite {
     /// return the fresh status so the caller can reflect whatever still holds it
     /// awake. Returns `nil` if the Mac is unreachable.
     public func disableMacKeepAwake(macDeviceID: String? = nil) async -> MobileMacPowerStatus? {
-        guard let client = macPowerClient(for: macDeviceID) else { return nil }
+        guard let client = macControlClient(for: macDeviceID) else { return nil }
         do {
             let request = try MobileCoreRPCClient.requestData(
                 method: "mac.power.keep_awake.disable",
@@ -92,7 +92,7 @@ extension MobileShellComposite {
     /// Resolve the RPC client that owns `macDeviceID`. Power commands target the
     /// Mac the phone is actually connected to; an empty/absent id uses the
     /// foreground connection (mirrors the workspace/notification routing).
-    private func macPowerClient(for macDeviceID: String?) -> MobileCoreRPCClient? {
+    func macControlClient(for macDeviceID: String?) -> MobileCoreRPCClient? {
         guard let macDeviceID, !macDeviceID.isEmpty else { return remoteClient }
         if foregroundMacDeviceID == macDeviceID { return remoteClient }
         return secondaryMacSubscriptions[macDeviceID]?.client

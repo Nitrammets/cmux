@@ -54,6 +54,21 @@ struct MacPowerControllerTests {
         #expect(ok == false)
     }
 
+    @Test func sleepDisplaysRunsPmsetDisplaySleepNow() async {
+        let runner = FakeMacPowerCommandRunner()
+        let ok = await MacPowerController(runner: runner).sleepDisplays()
+        #expect(ok)
+        #expect(await runner.calls == [
+            .init(tool: "/usr/bin/pmset", arguments: ["displaysleepnow"]),
+        ])
+    }
+
+    @Test func sleepDisplaysReportsFailureWhenPmsetFails() async {
+        let runner = FakeMacPowerCommandRunner(runResults: ["/usr/bin/pmset": false])
+        let ok = await MacPowerController(runner: runner).sleepDisplays()
+        #expect(ok == false)
+    }
+
     @Test func systemRunnerTimesOutHungCommand() async {
         let runner = SystemMacPowerCommandRunner(timeout: 0.2)
         let ok = await runner.run("/bin/sh", ["-c", "sleep 5"])
