@@ -92,6 +92,16 @@ import Testing
     #expect(state.rowsToPrefetch(forScrollLines: 10) == 1800)
 }
 
+@Test func terminalScrollbackPrefetchStateDefaultCapIsBounded() {
+    var state = TerminalScrollbackPrefetchState(refreshDistanceRows: 10)
+
+    #expect(state.rowsToPrefetch(forScrollLines: 1) == 600)
+    #expect(state.rowsToPrefetch(forScrollLines: 10) == 1200)
+    #expect(state.rowsToPrefetch(forScrollLines: 10) == 1800)
+    #expect(state.rowsToPrefetch(forScrollLines: 10) == 2400)
+    #expect(state.rowsToPrefetch(forScrollLines: 10) == 2400)
+}
+
 @Test func terminalScrollGestureRoutingForwardsAlternateScreenDeltasUnchanged() {
     var prefetchState = TerminalScrollbackPrefetchState(windowRows: 600, refreshDistanceRows: 10)
 

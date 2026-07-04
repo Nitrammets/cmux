@@ -19,7 +19,7 @@ import Testing
     var iterator = store.terminalOutputStream(surfaceID: surfaceID).makeAsyncIterator()
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: 1)
     let coldReplayChunk = try #require(await iterator.next())
-    #expect(String(data: coldReplayChunk.data, encoding: .utf8) == "cold-replay")
+    #expect(coldReplayChunk.utf8Payload == "cold-replay")
     store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: coldReplayChunk.streamToken)
     let replayCountAfterMount = await router.count(of: "mobile.terminal.replay")
 
@@ -29,7 +29,7 @@ import Testing
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: replayCountAfterMount + 1)
 
     let replayChunk = try #require(await iterator.next())
-    #expect(String(data: replayChunk.data, encoding: .utf8) == "first-replay")
+    #expect(replayChunk.utf8Payload == "first-replay")
     let firstDropAccepted = store.deliverTerminalBytes(
         Data("live-during-first-barrier".utf8),
         surfaceID: surfaceID
@@ -40,7 +40,7 @@ import Testing
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: replayCountAfterMount + 2)
 
     let followUpChunk = try #require(await iterator.next())
-    #expect(String(data: followUpChunk.data, encoding: .utf8) == "follow-up-replay")
+    #expect(followUpChunk.utf8Payload == "follow-up-replay")
     let followUpDropAccepted = store.deliverTerminalBytes(
         Data("live-during-follow-up-barrier".utf8),
         surfaceID: surfaceID
@@ -59,5 +59,5 @@ import Testing
 
     store.deliverTerminalBytes(Data("after-bounded-replay".utf8), surfaceID: surfaceID)
     let afterBoundedReplay = try #require(await iterator.next())
-    #expect(String(data: afterBoundedReplay.data, encoding: .utf8) == "after-bounded-replay")
+    #expect(afterBoundedReplay.utf8Payload == "after-bounded-replay")
 }

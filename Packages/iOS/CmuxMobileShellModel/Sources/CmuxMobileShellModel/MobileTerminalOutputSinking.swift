@@ -21,22 +21,39 @@ public enum MobileTerminalOutputViewportPolicy: Equatable, Sendable {
 }
 
 public struct MobileTerminalOutputChunk: Sendable {
-    public let data: Data
+    /// Ordered VT byte sub-chunks for one logical delivery.
+    ///
+    /// Consumers apply each element sequentially and then acknowledge this
+    /// logical chunk exactly once. That keeps the stream's single-in-flight
+    /// backpressure protocol unchanged while allowing full replacements to be
+    /// bounded internally.
+    public let payload: [Data]
+    /// Token identifying the current mounted output stream generation.
     public let streamToken: UUID
+    /// Optional viewport sizing policy to apply before the payload.
     public let viewportPolicy: MobileTerminalOutputViewportPolicy?
-    /// True when `data` replays a full render-grid snapshot (`ESC c` reset +
-    /// scrollback + viewport repaint). The consuming surface must preserve its
-    /// local scrollback scroll position across the apply so an authoritative
-    /// rebuild never moves the viewport the user is holding.
+    /// True when `payload` replays a full render-grid snapshot (`ESC c` reset
+    /// + scrollback + viewport repaint). The consuming surface must preserve
+    /// its local scrollback scroll position across the apply so an
+    /// authoritative rebuild never moves the viewport the user is holding.
     public let isFullReplacement: Bool
+    /// True when every payload element is empty.
+    public var isEmpty: Bool {
+        payload.allSatisfy(\.isEmpty)
+    }
 
+    /// Creates one logical terminal output delivery.
+    /// - Parameter payload: Ordered VT byte sub-chunks to apply sequentially.
+    /// - Parameter streamToken: Token for the current stream generation.
+    /// - Parameter viewportPolicy: Optional viewport sizing policy.
+    /// - Parameter isFullReplacement: Whether the payload is a full snapshot.
     public init(
-        data: Data,
+        payload: [Data],
         streamToken: UUID,
         viewportPolicy: MobileTerminalOutputViewportPolicy? = nil,
         isFullReplacement: Bool = false
     ) {
-        self.data = data
+        self.payload = payload
         self.streamToken = streamToken
         self.viewportPolicy = viewportPolicy
         self.isFullReplacement = isFullReplacement

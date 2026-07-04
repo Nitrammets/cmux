@@ -38,7 +38,7 @@ import Testing
 
     store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: currentChunk.streamToken)
     let secondChunk = try #require(await currentIterator.next())
-    #expect(String(data: secondChunk.data, encoding: .utf8) == "new-second")
+    #expect(secondChunk.utf8Payload == "new-second")
 }
 
 @MainActor
@@ -73,7 +73,7 @@ import Testing
         bypassReplayBarrier: true
     )
     let replayChunk = try #require(await iterator.next())
-    #expect(String(data: replayChunk.data, encoding: .utf8) == "authoritative-replay")
+    #expect(replayChunk.utf8Payload == "authoritative-replay")
     #expect(replayChunk.streamToken != stalledChunk.streamToken)
 
     let liveBeforeReplayAckAccepted = store.deliverTerminalBytes(
@@ -96,7 +96,7 @@ import Testing
     store.deliverTerminalBytes(Data("after-replay-ack".utf8), surfaceID: surfaceID)
 
     let afterReplayAck = try #require(await iterator.next())
-    #expect(String(data: afterReplayAck.data, encoding: .utf8) == "after-replay-ack")
+    #expect(afterReplayAck.utf8Payload == "after-replay-ack")
 }
 
 @MainActor
@@ -122,7 +122,7 @@ import Testing
     #expect(accepted == true)
 
     let afterAbort = try #require(await iterator.next())
-    #expect(String(data: afterAbort.data, encoding: .utf8) == "after-aborted-replay")
+    #expect(afterAbort.utf8Payload == "after-aborted-replay")
 }
 
 @MainActor
@@ -137,7 +137,7 @@ import Testing
     var iterator = store.terminalOutputStream(surfaceID: surfaceID).makeAsyncIterator()
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: 1)
     let coldReplayChunk = try #require(await iterator.next())
-    #expect(String(data: coldReplayChunk.data, encoding: .utf8) == "cold-replay")
+    #expect(coldReplayChunk.utf8Payload == "cold-replay")
     store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: coldReplayChunk.streamToken)
     let coldReplaySettled = await waitForReplayBarrierFailureToSettle {
         !store.terminalReplaySurfaceIDsInFlight.contains(surfaceID)
@@ -153,7 +153,7 @@ import Testing
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: replayCountAfterMount + 1)
 
     let replayChunk = try #require(await iterator.next())
-    #expect(String(data: replayChunk.data, encoding: .utf8) == "first-replay")
+    #expect(replayChunk.utf8Payload == "first-replay")
 
     let acceptedDuringBarrier = store.deliverTerminalBytes(
         Data("live-during-barrier".utf8),
@@ -166,7 +166,7 @@ import Testing
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: replayCountAfterMount + 2)
 
     let followUpChunk = try #require(await iterator.next())
-    #expect(String(data: followUpChunk.data, encoding: .utf8) == "follow-up-replay")
+    #expect(followUpChunk.utf8Payload == "follow-up-replay")
     #expect(!store.terminalReplayBarrierDroppedOutputSurfaceIDs.contains(surfaceID))
 
     store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: followUpChunk.streamToken)
@@ -174,7 +174,7 @@ import Testing
 
     store.deliverTerminalBytes(Data("after-follow-up".utf8), surfaceID: surfaceID)
     let afterFollowUp = try #require(await iterator.next())
-    #expect(String(data: afterFollowUp.data, encoding: .utf8) == "after-follow-up")
+    #expect(afterFollowUp.utf8Payload == "after-follow-up")
 }
 
 @MainActor
@@ -189,7 +189,7 @@ import Testing
     var iterator = store.terminalOutputStream(surfaceID: surfaceID).makeAsyncIterator()
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: 1)
     let coldReplayChunk = try #require(await iterator.next())
-    #expect(String(data: coldReplayChunk.data, encoding: .utf8) == "cold-replay")
+    #expect(coldReplayChunk.utf8Payload == "cold-replay")
     store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: coldReplayChunk.streamToken)
     let replayCountAfterMount = await router.count(of: "mobile.terminal.replay")
 
@@ -211,7 +211,7 @@ import Testing
     #expect(store.terminalReplayBarrierDroppedOutputSurfaceIDs.contains(surfaceID))
 
     let retryReplayChunk = try #require(await iterator.next())
-    #expect(String(data: retryReplayChunk.data, encoding: .utf8) == "retry-replay")
+    #expect(retryReplayChunk.utf8Payload == "retry-replay")
     store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: retryReplayChunk.streamToken)
     #expect(store.terminalReplayBarrierTokensBySurfaceID[surfaceID] == nil)
     #expect(!store.terminalReplayBarrierDroppedOutputSurfaceIDs.contains(surfaceID))
@@ -229,7 +229,7 @@ import Testing
     var iterator = store.terminalOutputStream(surfaceID: surfaceID).makeAsyncIterator()
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: 1)
     let coldReplayChunk = try #require(await iterator.next())
-    #expect(String(data: coldReplayChunk.data, encoding: .utf8) == "cold-replay")
+    #expect(coldReplayChunk.utf8Payload == "cold-replay")
     store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: coldReplayChunk.streamToken)
     let replayCountAfterMount = await router.count(of: "mobile.terminal.replay")
 
@@ -247,7 +247,7 @@ import Testing
 
     if retryRequested {
         let retryReplayChunk = try #require(await iterator.next())
-        #expect(String(data: retryReplayChunk.data, encoding: .utf8) == "retry-replay")
+        #expect(retryReplayChunk.utf8Payload == "retry-replay")
         store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: retryReplayChunk.streamToken)
         #expect(store.terminalReplayBarrierTokensBySurfaceID[surfaceID] == nil)
     }
@@ -265,7 +265,7 @@ import Testing
     var iterator = store.terminalOutputStream(surfaceID: surfaceID).makeAsyncIterator()
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: 1)
     let coldReplayChunk = try #require(await iterator.next())
-    #expect(String(data: coldReplayChunk.data, encoding: .utf8) == "cold-replay")
+    #expect(coldReplayChunk.utf8Payload == "cold-replay")
     store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: coldReplayChunk.streamToken)
     let replayCountAfterMount = await router.count(of: "mobile.terminal.replay")
     await router.holdNextReplayResponses()
@@ -295,7 +295,7 @@ import Testing
 
     if replacementReplayRequested {
         let replacementReplayChunk = try #require(await iterator.next())
-        #expect(String(data: replacementReplayChunk.data, encoding: .utf8) == "replacement-replay")
+        #expect(replacementReplayChunk.utf8Payload == "replacement-replay")
         store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: replacementReplayChunk.streamToken)
         #expect(store.terminalReplayBarrierTokensBySurfaceID[surfaceID] == nil)
     }
@@ -313,7 +313,7 @@ import Testing
     var iterator = store.terminalOutputStream(surfaceID: surfaceID).makeAsyncIterator()
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: 1)
     let coldReplayChunk = try #require(await iterator.next())
-    #expect(String(data: coldReplayChunk.data, encoding: .utf8) == "cold-replay")
+    #expect(coldReplayChunk.utf8Payload == "cold-replay")
     store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: coldReplayChunk.streamToken)
     let replayCountAfterMount = await router.count(of: "mobile.terminal.replay")
     await router.holdNextReplayResponses()
@@ -343,7 +343,7 @@ import Testing
 
     if replacementReplayRequested {
         let replacementReplayChunk = try #require(await iterator.next())
-        #expect(String(data: replacementReplayChunk.data, encoding: .utf8) == "replacement-replay")
+        #expect(replacementReplayChunk.utf8Payload == "replacement-replay")
         store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: replacementReplayChunk.streamToken)
         #expect(store.terminalReplayBarrierTokensBySurfaceID[surfaceID] == nil)
     }
@@ -361,7 +361,7 @@ import Testing
     var iterator = store.terminalOutputStream(surfaceID: surfaceID).makeAsyncIterator()
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: 1)
     let coldReplayChunk = try #require(await iterator.next())
-    #expect(String(data: coldReplayChunk.data, encoding: .utf8) == "cold-replay")
+    #expect(coldReplayChunk.utf8Payload == "cold-replay")
     store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: coldReplayChunk.streamToken)
     let replayCountAfterMount = await router.count(of: "mobile.terminal.replay")
 
@@ -489,7 +489,7 @@ import Testing
     var iterator = store.terminalOutputStream(surfaceID: surfaceID).makeAsyncIterator()
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: 1)
     let coldReplayChunk = try #require(await iterator.next())
-    #expect(String(data: coldReplayChunk.data, encoding: .utf8) == "cold-replay")
+    #expect(coldReplayChunk.utf8Payload == "cold-replay")
     store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: coldReplayChunk.streamToken)
     let replayCountAfterMount = await router.count(of: "mobile.terminal.replay")
 
@@ -522,7 +522,7 @@ import Testing
 
     if genericReplayRequested {
         let replayChunk = try #require(await iterator.next())
-        #expect(String(data: replayChunk.data, encoding: .utf8) == "resync-replay")
+        #expect(replayChunk.utf8Payload == "resync-replay")
         #expect(store.terminalReplayBarrierTokensBySurfaceID[surfaceID] == preservedBarrierToken)
         store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: replayChunk.streamToken)
         #expect(store.terminalReplayBarrierTokensBySurfaceID[surfaceID] == nil)
@@ -541,7 +541,7 @@ import Testing
     var iterator = store.terminalOutputStream(surfaceID: surfaceID).makeAsyncIterator()
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: 1)
     let coldReplayChunk = try #require(await iterator.next())
-    #expect(String(data: coldReplayChunk.data, encoding: .utf8) == "cold-replay")
+    #expect(coldReplayChunk.utf8Payload == "cold-replay")
     store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: coldReplayChunk.streamToken)
     let replayCountAfterMount = await router.count(of: "mobile.terminal.replay")
 
@@ -553,14 +553,14 @@ import Testing
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: replayCountAfterMount + 1)
 
     let replayChunk = try #require(await iterator.next())
-    #expect(String(data: replayChunk.data, encoding: .utf8) == "first-replay")
+    #expect(replayChunk.utf8Payload == "first-replay")
     let firstBarrierToken = try #require(store.terminalReplayBarrierTokensBySurfaceID[surfaceID])
 
     store.terminalOutputDidReset(surfaceID: surfaceID, streamToken: replayChunk.streamToken)
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: replayCountAfterMount + 2)
 
     let retryReplayChunk = try #require(await iterator.next())
-    #expect(String(data: retryReplayChunk.data, encoding: .utf8) == "retry-replay")
+    #expect(retryReplayChunk.utf8Payload == "retry-replay")
     let retryBarrierToken = try #require(store.terminalReplayBarrierTokensBySurfaceID[surfaceID])
     #expect(retryBarrierToken == firstBarrierToken)
 
@@ -580,7 +580,7 @@ import Testing
     var iterator = store.terminalOutputStream(surfaceID: surfaceID).makeAsyncIterator()
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: 1)
     let coldReplayChunk = try #require(await iterator.next())
-    #expect(String(data: coldReplayChunk.data, encoding: .utf8) == "cold-replay")
+    #expect(coldReplayChunk.utf8Payload == "cold-replay")
     store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: coldReplayChunk.streamToken)
     let replayCountAfterMount = await router.count(of: "mobile.terminal.replay")
 
@@ -607,7 +607,7 @@ import Testing
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: replayCountAfterMount + 2)
 
     let retryReplayChunk = try #require(await iterator.next())
-    #expect(String(data: retryReplayChunk.data, encoding: .utf8) == "retry-replay")
+    #expect(retryReplayChunk.utf8Payload == "retry-replay")
 
     let postResponseDropAccepted = store.deliverTerminalBytes(
         Data("live-after-retry-response-before-ack".utf8),
@@ -619,7 +619,7 @@ import Testing
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: replayCountAfterMount + 3)
 
     let followUpChunk = try #require(await iterator.next())
-    #expect(String(data: followUpChunk.data, encoding: .utf8) == "follow-up-replay")
+    #expect(followUpChunk.utf8Payload == "follow-up-replay")
     store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: followUpChunk.streamToken)
     #expect(store.terminalReplayBarrierTokensBySurfaceID[surfaceID] == nil)
 }
@@ -636,7 +636,7 @@ import Testing
     var iterator = store.terminalOutputStream(surfaceID: surfaceID).makeAsyncIterator()
     await router.waitForCount(of: "mobile.terminal.replay", atLeast: 1)
     let coldReplayChunk = try #require(await iterator.next())
-    #expect(String(data: coldReplayChunk.data, encoding: .utf8) == "cold-replay")
+    #expect(coldReplayChunk.utf8Payload == "cold-replay")
     store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: coldReplayChunk.streamToken)
     let replayCountAfterMount = await router.count(of: "mobile.terminal.replay")
 
@@ -659,7 +659,7 @@ import Testing
 
     if followUpReplayRequested {
         let followUpChunk = try #require(await iterator.next())
-        #expect(String(data: followUpChunk.data, encoding: .utf8) == "follow-up-replay")
+        #expect(followUpChunk.utf8Payload == "follow-up-replay")
         store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: followUpChunk.streamToken)
         #expect(store.terminalReplayBarrierTokensBySurfaceID[surfaceID] == nil)
     }
@@ -733,7 +733,7 @@ private func waitForReplayRequestCount(
 
     let maybeDelivered = queue.completeInFlight()
     let delivered = try #require(maybeDelivered)
-    let vt = try #require(String(data: delivered.bytes, encoding: .utf8))
+    let vt = try #require(String(data: delivered.joinedPayload, encoding: .utf8))
     #expect(vt.contains("latest"))
     #expect(!vt.contains("old"))
 }
@@ -765,7 +765,7 @@ private func waitForReplayRequestCount(
     #expect(queue.pendingCount == 2)
     let maybeDelivered = queue.completeInFlight()
     let delivered = try #require(maybeDelivered)
-    let vt = try #require(String(data: delivered.bytes, encoding: .utf8))
+    let vt = try #require(String(data: delivered.joinedPayload, encoding: .utf8))
     #expect(vt.contains("snapshot"))
     #expect(queue.completeInFlight() == policyOnly)
 }

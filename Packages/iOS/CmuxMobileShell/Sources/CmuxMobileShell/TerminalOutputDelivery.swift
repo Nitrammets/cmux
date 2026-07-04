@@ -10,12 +10,12 @@ struct TerminalOutputDelivery: Equatable, Sendable {
         case viewportPolicy
     }
 
-    private enum Payload: Equatable, Sendable {
+    private enum Content: Equatable, Sendable {
         case bytes(Data)
         case renderGrid(MobileTerminalRenderGridFrame)
     }
 
-    private var payload: Payload
+    private var content: Content
     var replacementScope: ReplacementScope?
     var viewportPolicy: MobileTerminalOutputViewportPolicy?
 
@@ -29,7 +29,7 @@ struct TerminalOutputDelivery: Equatable, Sendable {
         replacementScope: ReplacementScope? = nil,
         viewportPolicy: MobileTerminalOutputViewportPolicy? = nil
     ) {
-        self.payload = .bytes(bytes)
+        self.content = .bytes(bytes)
         self.replacementScope = replaceable ? (replacementScope ?? .byteViewport) : nil
         self.viewportPolicy = viewportPolicy
     }
@@ -40,17 +40,17 @@ struct TerminalOutputDelivery: Equatable, Sendable {
         replacementScope: ReplacementScope? = nil,
         viewportPolicy: MobileTerminalOutputViewportPolicy? = nil
     ) {
-        self.payload = .renderGrid(frame)
+        self.content = .renderGrid(frame)
         self.replacementScope = replaceable ? (replacementScope ?? .renderGridViewport) : nil
         self.viewportPolicy = viewportPolicy
     }
 
-    var bytes: Data {
-        switch payload {
+    var payload: [Data] {
+        switch content {
         case .bytes(let bytes):
-            bytes
+            [bytes]
         case .renderGrid(let frame):
-            frame.vtPatchBytes()
+            frame.vtPatchByteChunks()
         }
     }
 
@@ -58,7 +58,7 @@ struct TerminalOutputDelivery: Equatable, Sendable {
     /// begin with an `ESC c` terminal reset. The apply side preserves the local
     /// viewport scroll position across these.
     var isFullReplacement: Bool {
-        switch payload {
+        switch content {
         case .bytes:
             false
         case .renderGrid(let frame):

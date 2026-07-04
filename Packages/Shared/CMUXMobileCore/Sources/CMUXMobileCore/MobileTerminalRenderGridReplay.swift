@@ -1,16 +1,10 @@
 import Foundation
 
-/// Synthesizes a VT byte stream that reproduces a ``MobileTerminalRenderGridFrame``
-/// when fed to a terminal emulator.
-///
-/// The replay is a pure, stateless transform: it reads the frame's value
-/// properties and emits the escape-sequence bytes that paint it. Splitting the
-/// synthesizer out of ``MobileTerminalRenderGridFrame`` keeps the wire DTO a
-/// pure value with no rendering policy, while ``MobileTerminalRenderGridFrame``
-/// retains thin ``MobileTerminalRenderGridFrame/vtPatchBytes()`` /
-/// ``MobileTerminalRenderGridFrame/vtReplacementBytes()`` accessors that
-/// forward here for call-site compatibility.
+/// Synthesizes VT bytes that reproduce a ``MobileTerminalRenderGridFrame``.
 public struct MobileTerminalRenderGridReplay: Sendable {
+    /// The default maximum byte count for one full-snapshot replay sub-chunk.
+    public static let defaultMaxChunkBytes = 49_152
+
     /// The frame this replay renders into VT bytes.
     public let frame: MobileTerminalRenderGridFrame
 
@@ -21,33 +15,32 @@ public struct MobileTerminalRenderGridReplay: Sendable {
         self.frame = frame
     }
 
-    /// Synthesize a VT byte stream that reproduces ``frame`` when fed to a
-    /// terminal emulator.
-    ///
-    /// A **full** frame is a faithful cold-attach snapshot: it resets the
-    /// terminal, restores dynamic default colors, repaints scrollback and the
-    /// visible viewport as a natural scrolling flow, restores the active screen
-    /// (`?1049h` for the alternate screen), reapplies non-default DEC/ANSI
-    /// modes, and finally restores the cursor. A **delta** frame clears and
-    /// repaints only the changed viewport rows.
-    ///
+    /// Synthesize the canonical VT byte stream for ``frame``.
     /// - Returns: The synthesized escape-sequence bytes.
     public func patchBytes() -> Data {
         frame.full ? fullSnapshotBytes() : deltaPatchBytes()
     }
 
-    /// Alias for ``patchBytes()``; the byte stream both replaces a full screen
-    /// and patches a delta depending on ``MobileTerminalRenderGridFrame/full``.
+    /// Synthesize ordered VT byte chunks whose concatenation equals ``patchBytes()``.
     ///
+    /// Delta frames remain one chunk. Full frames split only at CRLF flow-line
+    /// boundaries, and a single flow line is never split.
+    /// - Parameter maxChunkBytes: The target byte cap for each ordinary chunk.
+    ///   Non-positive values are clamped to one byte.
+    /// - Returns: Ordered VT byte chunks whose concatenation equals
+    ///   ``patchBytes()``.
+    public func patchByteChunks(maxChunkBytes: Int = Self.defaultMaxChunkBytes) -> [Data] {
+        guard frame.full else { return [deltaPatchBytes()] }
+        return splitFullSnapshotBytes(fullSnapshotBytes(), maxChunkBytes: maxChunkBytes)
+    }
+
+    /// Alias for ``patchBytes()``.
     /// - Returns: The synthesized escape-sequence bytes.
     public func replacementBytes() -> Data {
         patchBytes()
     }
 
-    /// DEC private mode codes that switch screens or save the cursor. The
-    /// active screen is restored explicitly via the frame's `activeScreen`, so
-    /// these are never replayed from `modes` (replaying them would
-    /// double-switch).
+    /// Screen-switching modes are restored explicitly, not replayed from `modes`.
     private let screenSwitchModeCodes: Set<Int> = [47, 1047, 1048, 1049]
 
     private func deltaPatchBytes() -> Data {
@@ -70,9 +63,7 @@ public struct MobileTerminalRenderGridReplay: Sendable {
             }
         }
         bytes.append(sgrBytes(for: defaultStyle))
-        // A delta never hides the cursor while painting, so (unlike a full
-        // snapshot) it leaves a nil cursor untouched instead of forcing it
-        // visible.
+        // Deltas leave a nil cursor untouched instead of forcing it visible.
         if let cursor = frame.cursor {
             bytes.append(cursorStyleBytes(for: cursor))
             if cursor.visible {
@@ -89,27 +80,17 @@ public struct MobileTerminalRenderGridReplay: Sendable {
         let stylesByID = styleMapByID(frame.styles)
         let defaultStyle = stylesByID[0] ?? .default
 
-        // Reset to a known state, then apply everything inside a synchronized
-        // update so the client never shows a partially-restored screen.
         bytes.append(Data("\u{1B}c".utf8))
         bytes.append(Data("\u{1B}[?2026h".utf8))
 
-        // Dynamic default colors (OSC 10/11/12). Cells already carry explicit
-        // RGB, so these mainly fix the cursor color and color queries.
         if let osc = oscColorBytes(10, frame.terminalForeground) { bytes.append(osc) }
         if let osc = oscColorBytes(11, frame.terminalBackground) { bytes.append(osc) }
         if let osc = oscColorBytes(12, frame.terminalCursorColor) { bytes.append(osc) }
 
-        // Paint with autowrap and the cursor off so a full-width row plus an
-        // explicit newline cannot wrap into a phantom blank line, and so the
-        // restore does not flicker the cursor across the grid.
         bytes.append(Data("\u{1B}[?7l\u{1B}[?25l".utf8))
         bytes.append(sgrBytes(for: defaultStyle))
 
         if frame.activeScreen == .alternate {
-            // Scrollback belongs to the primary screen; flow it there first so
-            // it is preserved behind the alternate screen, then enter the
-            // alternate screen and paint the TUI viewport.
             appendFlowLines(
                 &bytes,
                 spans: frame.scrollbackSpans,
@@ -129,8 +110,6 @@ public struct MobileTerminalRenderGridReplay: Sendable {
                 terminateLast: false
             )
         } else {
-            // Primary: scrollback then the viewport as one continuous flow so
-            // the scrollback naturally lands in the client's history.
             let offsetViewportSpans = frame.rowSpans.map { span in
                 MobileTerminalRenderGridFrame.RowSpan(
                     row: span.row + frame.scrollbackRows,
@@ -150,8 +129,6 @@ public struct MobileTerminalRenderGridReplay: Sendable {
             )
         }
 
-        // Reapply modes last so autowrap returns to its captured value
-        // (undoing the temporary `?7l`) and mouse/paste/app-key modes are live.
         for mode in frame.modes where !screenSwitchModeCodes.contains(mode.code) {
             bytes.append(modeBytes(mode))
         }
@@ -161,9 +138,52 @@ public struct MobileTerminalRenderGridReplay: Sendable {
         return bytes
     }
 
-    /// Append `lineCount` lines (rows `0..<lineCount` of `spans`) as a natural
-    /// scrolling flow: each line resets to the default style, positions its
-    /// spans with `CHA`, and is separated from the next by CRLF.
+    private func splitFullSnapshotBytes(_ bytes: Data, maxChunkBytes: Int) -> [Data] {
+        let maxChunkBytes = max(1, maxChunkBytes)
+        guard bytes.count > maxChunkBytes else { return [bytes] }
+        var chunks: [Data] = []
+        var start = bytes.startIndex
+        var index = start
+        var candidate = start
+        while index < bytes.endIndex {
+            if isCRLF(in: bytes, at: index), index > start {
+                candidate = index
+            }
+            if bytes.distance(from: start, to: index) + 1 > maxChunkBytes {
+                let split = candidate > start
+                    ? candidate
+                    : nextCRLFBoundary(in: bytes, after: index) ?? bytes.endIndex
+                chunks.append(Data(bytes[start..<split]))
+                start = split
+                index = split
+                candidate = split
+                continue
+            }
+            index = bytes.index(after: index)
+        }
+        if start < bytes.endIndex {
+            chunks.append(Data(bytes[start..<bytes.endIndex]))
+        }
+        return chunks.isEmpty ? [Data()] : chunks
+    }
+
+    private func nextCRLFBoundary(in bytes: Data, after index: Data.Index) -> Data.Index? {
+        var cursor = bytes.index(after: index)
+        while cursor < bytes.endIndex {
+            if isCRLF(in: bytes, at: cursor) {
+                return cursor
+            }
+            cursor = bytes.index(after: cursor)
+        }
+        return nil
+    }
+
+    private func isCRLF(in bytes: Data, at index: Data.Index) -> Bool {
+        let next = bytes.index(after: index)
+        return next < bytes.endIndex && bytes[index] == 0x0D && bytes[next] == 0x0A
+    }
+
+    /// Append lines as a natural scrolling flow separated by CRLF.
     private func appendFlowLines(
         _ bytes: inout Data,
         spans: [MobileTerminalRenderGridFrame.RowSpan],

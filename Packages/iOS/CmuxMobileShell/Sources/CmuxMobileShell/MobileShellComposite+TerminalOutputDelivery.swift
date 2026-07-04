@@ -111,7 +111,7 @@ extension MobileShellComposite {
         if let immediate {
             continuation.yield(
                 MobileTerminalOutputChunk(
-                    data: immediate.bytes,
+                    payload: immediate.payload,
                     streamToken: streamToken,
                     viewportPolicy: immediate.viewportPolicy,
                     isFullReplacement: immediate.isFullReplacement
@@ -158,7 +158,7 @@ extension MobileShellComposite {
             return
         }
         continuation.yield(MobileTerminalOutputChunk(
-            data: next.bytes,
+            payload: next.payload,
             streamToken: streamToken,
             viewportPolicy: next.viewportPolicy,
             isFullReplacement: next.isFullReplacement
@@ -174,6 +174,7 @@ extension MobileShellComposite {
     public func terminalOutputDidReset(surfaceID: String, streamToken: UUID) {
         guard terminalOutputStreamTokensBySurfaceID[surfaceID] == streamToken,
               terminalOutputQueuesBySurfaceID[surfaceID] != nil else { return }
+        resetTerminalScrollbackPrefetchState(surfaceID: surfaceID)
         if let replayBarrierToken = terminalReplayBarrierTokensBySurfaceID[surfaceID] {
             guard terminalReplayBarrierAckStreamTokensBySurfaceID[surfaceID] == streamToken else {
                 MobileDebugLog.anchormux("terminal.output.reset_barrier_active surface=\(surfaceID)")
@@ -190,6 +191,10 @@ extension MobileShellComposite {
         requestTerminalReplay(surfaceID: surfaceID, replayBarrierToken: replayBarrierToken)
     }
 
+    private func resetTerminalScrollbackPrefetchState(surfaceID: String) {
+        terminalScrollbackPrefetchStatesBySurfaceID.removeValue(forKey: surfaceID)
+    }
+
     private func retryTerminalReplayAfterAckReset(
         surfaceID: String,
         replayBarrierToken: UUID
@@ -199,6 +204,7 @@ extension MobileShellComposite {
         }
         terminalOutputQueuesBySurfaceID[surfaceID] = TerminalOutputDeliveryQueue()
         terminalOutputStreamTokensBySurfaceID[surfaceID] = UUID()
+        resetTerminalScrollbackPrefetchState(surfaceID: surfaceID)
         deliveredTerminalByteEndSeqBySurfaceID.removeValue(forKey: surfaceID)
         pendingTerminalByteEndSeqBySurfaceID.removeValue(forKey: surfaceID)
         terminalReplayBarrierAckStreamTokensBySurfaceID.removeValue(forKey: surfaceID)
