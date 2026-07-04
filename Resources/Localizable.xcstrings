@@ -1361,6 +1361,23 @@
         }
       }
     },
+    "agent.generic.completion.body.finishedPrompt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finished: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完了: %@"
+          }
+        }
+      }
+    },
     "agent.codex.completion.subtitle.completed": {
       "extractionState": "manual",
       "localizations": {
@@ -11878,6 +11895,23 @@
           "stringUnit": {
             "state": "needs_review",
             "value": "Send"
+          }
+        }
+      }
+    },
+    "agent.opencode.completion.body.sessionCompleted": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenCode session completed"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenCode セッションが完了しました"
           }
         }
       }
@@ -97390,6 +97424,23 @@
         }
       }
     },
+    "feed.notification.exitPlan.kind": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "plan ready"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プラン準備完了"
+          }
+        }
+      }
+    },
     "feed.notification.exitPlan.bypass": {
       "extractionState": "manual",
       "localizations": {
@@ -97526,6 +97577,23 @@
         }
       }
     },
+    "feed.notification.permission.allowBody": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow %@: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: %@ を許可"
+          }
+        }
+      }
+    },
     "feed.notification.permission.deny": {
       "extractionState": "manual",
       "localizations": {
@@ -97556,6 +97624,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@の権限確認"
+          }
+        }
+      }
+    },
+    "feed.notification.permission.kind": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "permission"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "権限"
           }
         }
       }
@@ -97607,6 +97692,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@からの質問"
+          }
+        }
+      }
+    },
+    "feed.notification.question.kind": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "question"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "質問"
+          }
+        }
+      }
+    },
+    "feed.notification.source.agent": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エージェント"
           }
         }
       }
